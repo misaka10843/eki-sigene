@@ -1,0 +1,8 @@
+/* Tailwind v4 — utilities layer only, no preflight (Vuetify handles the base reset) */
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
