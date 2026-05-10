@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from 'vuetify'
 import { useSignGenerator } from '@/composables/useSignGenerator'
@@ -31,6 +31,72 @@ watch(() => state.branchLeft, (v) => {
 watch(() => state.branchRight, (v) => {
   if (v) state.rightStations[1]!.go = true
   if (v && !openPanels.value.includes('rightLower')) openPanels.value.push('rightLower')
+})
+
+/* ── Color derivation utilities ── */
+function hexToHsl(hex: string): [number, number, number] {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  let h = 0, s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+  return [h * 360, s * 100, l * 100]
+}
+function hslToHex(h: number, s: number, l: number): string {
+  h /= 360; s /= 100; l /= 100
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  let r, g, b
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1 / 3)
+  }
+  return '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
+}
+function deriveStripColor(hex: string): string {
+  const [h, s, l] = hexToHsl(hex)
+  return hslToHex(h, s, l < 50 ? Math.min(100, l + 25) : Math.max(0, l - 25))
+}
+
+/* ── Track last auto-derived values to detect manual overrides ── */
+const _auto = reactive({ leftLine: '', rightLine: '', numbering: '' })
+
+watch(() => state.routeColors[0], (color) => {
+  if (!color) return
+  const strip = deriveStripColor(color)
+
+  const ls = state.leftStations[0]
+  if (ls && (!_auto.leftLine || ls.lineColor === _auto.leftLine)) {
+    ls.lineColor = strip; _auto.leftLine = strip
+  }
+
+  const rs = state.rightStations[0]
+  if (rs && (!_auto.rightLine || rs.lineColor === _auto.rightLine)) {
+    rs.lineColor = strip; _auto.rightLine = strip
+  }
+
+  const n = state.sta.numberings[0]
+  if (n && (!_auto.numbering || n.color === _auto.numbering)) {
+    n.color = color; _auto.numbering = color
+  }
 })
 
 /* ── Resize handling ── */
